@@ -10,26 +10,32 @@ st.set_page_config(page_title="Finanzas Pro Cloud", layout="wide", page_icon="�
 
 # --- CONEXIÓN A GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
-# Asegúrate de poner tu URL real aquí
+
+# ⚠️ IMPORTANTE: Pega aquí tu URL real de Google Sheets
 URL_HOJA = "https://docs.google.com/spreadsheets/d/14G5YVHmww4ZR3PMPeQFQSJ81FWOOGLvWmAYZ-9OytAw/edit?gid=667589785#gid=667589785"
 
-def guardar_movimiento(df_actual, fecha, concepto, categoria, tipo, monto, worksheet):
-    nuevo = pd.DataFrame({
-        df_actual.columns[0]: [pd.to_datetime(fecha).strftime("%Y-%m-%d")], 
-        df_actual.columns[1]: [concepto], 
-        df_actual.columns[2]: [categoria], 
-        df_actual.columns[3]: [tipo], 
-        df_actual.columns[4]: [monto]
-    })
-    df_actualizado = pd.concat([df_actual, nuevo], ignore_index=True)
-    
-    # 1. Enviamos los datos a Google Sheets
-    conn.update(spreadsheet=URL_HOJA, worksheet=worksheet, data=df_actualizado)
-    
-    # 2. BORRAMOS LA MEMORIA CACHÉ para forzar la actualización visual
-    st.cache_data.clear()
-    
-    return df_actualizado
+def cargar_datos_flujo():
+    try:
+        # ttl=0 fuerza a leer los datos en tiempo real, ignorando el caché
+        df = conn.read(spreadsheet=URL_HOJA, worksheet="Datos", usecols=[0, 1, 2, 3, 4], ttl=0)
+        df = df.dropna(how="all")
+        if not df.empty:
+            df['Fecha'] = pd.to_datetime(df['Fecha'])
+            df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
+        return df
+    except Exception as e:
+        return pd.DataFrame(columns=['Fecha', 'Concepto', 'Categoría', 'Tipo', 'Monto'])
+
+def cargar_datos_balance():
+    try:
+        df = conn.read(spreadsheet=URL_HOJA, worksheet="Balance", usecols=[0, 1, 2, 3, 4], ttl=0)
+        df = df.dropna(how="all")
+        if not df.empty:
+            df['Fecha'] = pd.to_datetime(df['Fecha'])
+            df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
+        return df
+    except Exception as e:
+        return pd.DataFrame(columns=['Fecha', 'Cuenta', 'Clasificación', 'Categoría', 'Monto'])
 
 def guardar_movimiento(df_actual, fecha, concepto, categoria, tipo, monto, worksheet):
     nuevo = pd.DataFrame({
@@ -41,24 +47,12 @@ def guardar_movimiento(df_actual, fecha, concepto, categoria, tipo, monto, works
     })
     df_actualizado = pd.concat([df_actual, nuevo], ignore_index=True)
     
-    # 1. Enviamos los datos a Google Sheets
+    # 1. Guardar en la nube
     conn.update(spreadsheet=URL_HOJA, worksheet=worksheet, data=df_actualizado)
     
-    # 2. BORRAMOS LA MEMORIA CACHÉ para forzar la actualización visual
+    # 2. Limpiar memoria para asegurar actualización visual
     st.cache_data.clear()
     
-    return df_actualizado
-
-def guardar_movimiento(df_actual, fecha, concepto, categoria, tipo, monto, worksheet):
-    nuevo = pd.DataFrame({
-        df_actual.columns[0]: [pd.to_datetime(fecha).strftime("%Y-%m-%d")], 
-        df_actual.columns[1]: [concepto], 
-        df_actual.columns[2]: [categoria], 
-        df_actual.columns[3]: [tipo], 
-        df_actual.columns[4]: [monto]
-    })
-    df_actualizado = pd.concat([df_actual, nuevo], ignore_index=True)
-    conn.update(spreadsheet=URL_HOJA, worksheet=worksheet, data=df_actualizado)
     return df_actualizado
 
 # --- INTERFAZ PRINCIPAL ---
@@ -67,11 +61,10 @@ st.title("☁️ Plataforma de Análisis Financiero")
 df_flujo = cargar_datos_flujo()
 df_balance = cargar_datos_balance()
 
-# Estructura de pestañas
 tab_dashboard, tab_balance, tab_proyecciones = st.tabs(["📊 Flujo de Efectivo", "⚖️ Balance General", "🔮 Modelado Financiero"])
 
 # ==========================================
-# PESTAÑA 1: FLUJO DE EFECTIVO (Ingresos y Gastos)
+# PESTAÑA 1: FLUJO DE EFECTIVO
 # ==========================================
 with tab_dashboard:
     col_input, col_dash = st.columns([1, 3])
@@ -117,7 +110,7 @@ with tab_dashboard:
             st.plotly_chart(fig_trend, use_container_width=True)
 
 # ==========================================
-# PESTAÑA 2: BALANCE GENERAL (Patrimonio)
+# PESTAÑA 2: BALANCE GENERAL
 # ==========================================
 with tab_balance:
     col_in_bal, col_dash_bal = st.columns([1, 3])
@@ -139,7 +132,6 @@ with tab_balance:
         
         if st.button("Actualizar Balance", type="primary", use_container_width=True):
             if monto_bal > 0:
-                # Si la cuenta ya existe, se podría programar una actualización, por ahora se registra como un corte histórico
                 with st.spinner('Actualizando Balance...'):
                     guardar_movimiento(df_balance, fecha_bal, cuenta, clase, categoria_bal, monto_bal, "Balance")
                 st.success("¡Balance Actualizado!")
@@ -147,7 +139,6 @@ with tab_balance:
                 
     with col_dash_bal:
         if not df_balance.empty:
-            # Para el balance, tomamos el último valor registrado de cada cuenta
             df_actual = df_balance.sort_values('Fecha').drop_duplicates(subset=['Cuenta'], keep='last')
             
             total_activos = df_actual[df_actual['Clasificación'] == 'Activo']['Monto'].sum()
@@ -160,8 +151,6 @@ with tab_balance:
             cb3.metric("Patrimonio Neto", f"${patrimonio:,.2f}", delta=float(patrimonio))
             
             st.subheader("Estructura Patrimonial (Gráfico de Cascada)")
-            
-            # Preparar datos para el Waterfall chart
             medidas = ['relative'] * len(df_actual) + ['total']
             valores = []
             textos = []
@@ -197,12 +186,12 @@ with tab_balance:
             st.info("Registra tus cuentas bancarias, propiedades y deudas para calcular tu Patrimonio Neto.")
 
 # ==========================================
-# PESTAÑA 3: MODELADO FINANCIERO (Sin cambios)
+# PESTAÑA 3: MODELADO FINANCIERO
 # ==========================================
 with tab_proyecciones:
     st.header("Modelos de Amortización y Deuda")
     col_hipoteca, col_tc = st.columns(2)
-    # --- MODELO HIPOTECARIO ---
+    
     with col_hipoteca:
         st.subheader("🏠 Simulador de Hipoteca / Préstamo")
         capital = st.number_input("Capital del Préstamo ($)", value=1000000.0, step=50000.0)
@@ -232,7 +221,6 @@ with tab_proyecciones:
             fig_hipoteca = px.area(df_amort, x='Mes', y=['Interés', 'Capital'], color_discrete_sequence=['#EF553B', '#00CC96'])
             st.plotly_chart(fig_hipoteca, use_container_width=True)
 
-    # --- MODELO DE TARJETA DE CRÉDITO ---
     with col_tc:
         st.subheader("💳 Proyección de Tarjeta de Crédito")
         deuda_tc = st.number_input("Deuda Actual TDC ($)", value=25000.0, step=1000.0)
@@ -271,6 +259,7 @@ with tab_proyecciones:
             fig_tc = px.line(df_tc, x='Mes', y='Saldo', markers=True)
             fig_tc.update_traces(line_color='red')
             st.plotly_chart(fig_tc, use_container_width=True)
+
 
 
 
