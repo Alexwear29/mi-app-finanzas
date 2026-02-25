@@ -24,16 +24,23 @@ def cargar_datos_flujo():
     except Exception as e:
         return pd.DataFrame(columns=['Fecha', 'Concepto', 'Categoría', 'Tipo', 'Monto'])
 
-def cargar_datos_balance():
-    try:
-        df = conn.read(spreadsheet=URL_HOJA, worksheet="Balance", usecols=[0, 1, 2, 3, 4])
-        df = df.dropna(how="all")
-        if not df.empty:
-            df['Fecha'] = pd.to_datetime(df['Fecha'])
-            df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
-        return df
-    except Exception as e:
-        return pd.DataFrame(columns=['Fecha', 'Cuenta', 'Clasificación', 'Categoría', 'Monto'])
+def guardar_movimiento(df_actual, fecha, concepto, categoria, tipo, monto, worksheet):
+    nuevo = pd.DataFrame({
+        df_actual.columns[0]: [pd.to_datetime(fecha).strftime("%Y-%m-%d")], 
+        df_actual.columns[1]: [concepto], 
+        df_actual.columns[2]: [categoria], 
+        df_actual.columns[3]: [tipo], 
+        df_actual.columns[4]: [monto]
+    })
+    df_actualizado = pd.concat([df_actual, nuevo], ignore_index=True)
+    
+    # 1. Enviamos los datos a Google Sheets
+    conn.update(spreadsheet=URL_HOJA, worksheet=worksheet, data=df_actualizado)
+    
+    # 2. BORRAMOS LA MEMORIA CACHÉ para forzar la actualización visual
+    st.cache_data.clear()
+    
+    return df_actualizado
 
 def guardar_movimiento(df_actual, fecha, concepto, categoria, tipo, monto, worksheet):
     nuevo = pd.DataFrame({
@@ -257,4 +264,5 @@ with tab_proyecciones:
             fig_tc = px.line(df_tc, x='Mes', y='Saldo', markers=True)
             fig_tc.update_traces(line_color='red')
             st.plotly_chart(fig_tc, use_container_width=True)
+
 
