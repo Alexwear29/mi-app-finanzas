@@ -19,13 +19,11 @@ def cargar_datos_flujo():
         df = conn.read(spreadsheet=URL_HOJA, worksheet="Datos", usecols=[0, 1, 2, 3, 4], ttl=0)
         df = df.dropna(how="all")
         if not df.empty:
-            # Blindaje: Forzamos los nombres exactos para evitar fallos por errores de tipeo en Sheets
             df.columns = ['Fecha', 'Concepto', 'Categoría', 'Tipo', 'Monto']
             df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
             df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
         return df
     except Exception as e:
-        # Ahora el error será visible en la pantalla si algo falla estructuralmente
         st.error(f"Error técnico al leer Flujo: {e}")
         return pd.DataFrame(columns=['Fecha', 'Concepto', 'Categoría', 'Tipo', 'Monto'])
 
@@ -34,7 +32,6 @@ def cargar_datos_balance():
         df = conn.read(spreadsheet=URL_HOJA, worksheet="Balance", usecols=[0, 1, 2, 3, 4], ttl=0)
         df = df.dropna(how="all")
         if not df.empty:
-            # Blindaje: Forzamos los nombres exactos en la pestaña de Balance
             df.columns = ['Fecha', 'Cuenta', 'Clasificación', 'Categoría', 'Monto']
             df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
             df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
@@ -52,13 +49,8 @@ def guardar_movimiento(df_actual, fecha, concepto, categoria, tipo, monto, works
         df_actual.columns[4]: [monto]
     })
     df_actualizado = pd.concat([df_actual, nuevo], ignore_index=True)
-    
-    # 1. Guardar en la nube
     conn.update(spreadsheet=URL_HOJA, worksheet=worksheet, data=df_actualizado)
-    
-    # 2. Limpiar memoria para asegurar actualización visual
     st.cache_data.clear()
-    
     return df_actualizado
 
 # --- INTERFAZ PRINCIPAL ---
@@ -76,12 +68,9 @@ with tab_dashboard:
     col_input, col_dash = st.columns([1, 3])
     
     with col_input:
-        if st.button("Guardar en Flujo", type="primary", use_container_width=True):
-            if monto_flujo > 0:
-                with st.spinner('Sincronizando...'):
-                    # Sobreescribimos la variable df_flujo y eliminamos st.rerun()
-                    df_flujo = guardar_movimiento(df_flujo, fecha_flujo, concepto_flujo, cat_flujo, tipo_flujo, monto_flujo, "Datos")
-                st.success("¡Sincronizado!")
+        st.subheader("📝 Registrar Flujo")
+        fecha_flujo = st.date_input("Fecha", datetime.now(), key="f_flujo")
+        tipo_flujo = st.radio("Tipo", ["Gasto", "Ingreso"], horizontal=True, key="t_flujo")
         
         if tipo_flujo == "Ingreso":
             cat_flujo = st.selectbox("Categoría", ["Nómina", "Inversiones", "Negocio", "Otros"], key="c_flujo")
@@ -94,9 +83,8 @@ with tab_dashboard:
         if st.button("Guardar en Flujo", type="primary", use_container_width=True):
             if monto_flujo > 0:
                 with st.spinner('Sincronizando...'):
-                    guardar_movimiento(df_flujo, fecha_flujo, concepto_flujo, cat_flujo, tipo_flujo, monto_flujo, "Datos")
+                    df_flujo = guardar_movimiento(df_flujo, fecha_flujo, concepto_flujo, cat_flujo, tipo_flujo, monto_flujo, "Datos")
                 st.success("¡Sincronizado!")
-                st.rerun()
 
     with col_dash:
         if not df_flujo.empty:
@@ -121,12 +109,8 @@ with tab_dashboard:
 # ==========================================
 # PESTAÑA 2: BALANCE GENERAL
 # ==========================================
-if st.button("Actualizar Balance", type="primary", use_container_width=True):
-            if monto_bal > 0:
-                with st.spinner('Actualizando Balance...'):
-                    # Sobreescribimos la variable df_balance y eliminamos st.rerun()
-                    df_balance = guardar_movimiento(df_balance, fecha_bal, cuenta, clase, categoria_bal, monto_bal, "Balance")
-                st.success("¡Balance Actualizado!")
+with tab_balance:
+    col_in_bal, col_dash_bal = st.columns([1, 3])
     
     with col_in_bal:
         st.subheader("🏦 Registrar Cuenta")
@@ -146,9 +130,8 @@ if st.button("Actualizar Balance", type="primary", use_container_width=True):
         if st.button("Actualizar Balance", type="primary", use_container_width=True):
             if monto_bal > 0:
                 with st.spinner('Actualizando Balance...'):
-                    guardar_movimiento(df_balance, fecha_bal, cuenta, clase, categoria_bal, monto_bal, "Balance")
+                    df_balance = guardar_movimiento(df_balance, fecha_bal, cuenta, clase, categoria_bal, monto_bal, "Balance")
                 st.success("¡Balance Actualizado!")
-                st.rerun()
                 
     with col_dash_bal:
         if not df_balance.empty:
@@ -272,9 +255,3 @@ with tab_proyecciones:
             fig_tc = px.line(df_tc, x='Mes', y='Saldo', markers=True)
             fig_tc.update_traces(line_color='red')
             st.plotly_chart(fig_tc, use_container_width=True)
-
-
-
-
-
-
