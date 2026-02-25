@@ -11,7 +11,7 @@ st.set_page_config(page_title="Finanzas Pro Cloud", layout="wide", page_icon="�
 # --- CONEXIÓN A GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 # Asegúrate de poner tu URL real aquí
-URL_HOJA = "https://docs.google.com/spreadsheets/d/AQUI_VA_TU_URL_COMPLETA/edit"
+URL_HOJA = "https://docs.google.com/spreadsheets/d/14G5YVHmww4ZR3PMPeQFQSJ81FWOOGLvWmAYZ-9OytAw/edit?gid=667589785#gid=667589785"
 
 def cargar_datos_flujo():
     try:
@@ -257,3 +257,4 @@ with tab_proyecciones:
             fig_tc = px.line(df_tc, x='Mes', y='Saldo', markers=True)
             fig_tc.update_traces(line_color='red')
             st.plotly_chart(fig_tc, use_container_width=True)
+
