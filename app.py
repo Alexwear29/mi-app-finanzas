@@ -88,9 +88,22 @@ with tab_dashboard:
             
             # Gráfico de tendencias
             st.subheader("Tendencia de Flujo de Efectivo")
+            
+            # 1. Asegurar que los montos sean numéricos (previene errores de lectura de Sheets)
+            df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
+            
+            # 2. Agrupación
             df_grouped = df.groupby([df['Fecha'].dt.to_period('M'), 'Tipo'])['Monto'].sum().unstack(fill_value=0).reset_index()
+            
+            # 3. Validación de columnas (El parche para evitar el ValueError)
+            if 'Ingreso' not in df_grouped.columns:
+                df_grouped['Ingreso'] = 0.0
+            if 'Gasto' not in df_grouped.columns:
+                df_grouped['Gasto'] = 0.0
+                
             df_grouped['Fecha'] = df_grouped['Fecha'].dt.to_timestamp()
             
+            # 4. Generar gráfico
             fig_trend = px.bar(df_grouped, x='Fecha', y=['Ingreso', 'Gasto'], barmode='group', color_discrete_map={'Ingreso':'#00CC96', 'Gasto':'#EF553B'})
             st.plotly_chart(fig_trend, use_container_width=True)
 
@@ -182,4 +195,5 @@ with tab_proyecciones:
             df_tc = pd.DataFrame(historial_tc)
             fig_tc = px.line(df_tc, x='Mes', y='Saldo', title="Curva de Liquidación de Deuda", markers=True)
             fig_tc.update_traces(line_color='red')
+
             st.plotly_chart(fig_tc, use_container_width=True)
