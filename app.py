@@ -76,9 +76,12 @@ with tab_dashboard:
     col_input, col_dash = st.columns([1, 3])
     
     with col_input:
-        st.subheader("📝 Registrar Flujo")
-        fecha_flujo = st.date_input("Fecha", datetime.now(), key="f_flujo")
-        tipo_flujo = st.radio("Tipo", ["Gasto", "Ingreso"], horizontal=True, key="t_flujo")
+        if st.button("Guardar en Flujo", type="primary", use_container_width=True):
+            if monto_flujo > 0:
+                with st.spinner('Sincronizando...'):
+                    # Sobreescribimos la variable df_flujo y eliminamos st.rerun()
+                    df_flujo = guardar_movimiento(df_flujo, fecha_flujo, concepto_flujo, cat_flujo, tipo_flujo, monto_flujo, "Datos")
+                st.success("¡Sincronizado!")
         
         if tipo_flujo == "Ingreso":
             cat_flujo = st.selectbox("Categoría", ["Nómina", "Inversiones", "Negocio", "Otros"], key="c_flujo")
@@ -118,8 +121,12 @@ with tab_dashboard:
 # ==========================================
 # PESTAÑA 2: BALANCE GENERAL
 # ==========================================
-with tab_balance:
-    col_in_bal, col_dash_bal = st.columns([1, 3])
+if st.button("Actualizar Balance", type="primary", use_container_width=True):
+            if monto_bal > 0:
+                with st.spinner('Actualizando Balance...'):
+                    # Sobreescribimos la variable df_balance y eliminamos st.rerun()
+                    df_balance = guardar_movimiento(df_balance, fecha_bal, cuenta, clase, categoria_bal, monto_bal, "Balance")
+                st.success("¡Balance Actualizado!")
     
     with col_in_bal:
         st.subheader("🏦 Registrar Cuenta")
@@ -265,6 +272,7 @@ with tab_proyecciones:
             fig_tc = px.line(df_tc, x='Mes', y='Saldo', markers=True)
             fig_tc.update_traces(line_color='red')
             st.plotly_chart(fig_tc, use_container_width=True)
+
 
 
 
