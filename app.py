@@ -16,14 +16,17 @@ URL_HOJA = "https://docs.google.com/spreadsheets/d/14G5YVHmww4ZR3PMPeQFQSJ81FWOO
 
 def cargar_datos_flujo():
     try:
-        # ttl=0 fuerza a leer los datos en tiempo real, ignorando el caché
         df = conn.read(spreadsheet=URL_HOJA, worksheet="Datos", usecols=[0, 1, 2, 3, 4], ttl=0)
         df = df.dropna(how="all")
         if not df.empty:
-            df['Fecha'] = pd.to_datetime(df['Fecha'])
+            # Blindaje: Forzamos los nombres exactos para evitar fallos por errores de tipeo en Sheets
+            df.columns = ['Fecha', 'Concepto', 'Categoría', 'Tipo', 'Monto']
+            df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
             df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
         return df
     except Exception as e:
+        # Ahora el error será visible en la pantalla si algo falla estructuralmente
+        st.error(f"Error técnico al leer Flujo: {e}")
         return pd.DataFrame(columns=['Fecha', 'Concepto', 'Categoría', 'Tipo', 'Monto'])
 
 def cargar_datos_balance():
@@ -31,10 +34,13 @@ def cargar_datos_balance():
         df = conn.read(spreadsheet=URL_HOJA, worksheet="Balance", usecols=[0, 1, 2, 3, 4], ttl=0)
         df = df.dropna(how="all")
         if not df.empty:
-            df['Fecha'] = pd.to_datetime(df['Fecha'])
+            # Blindaje: Forzamos los nombres exactos en la pestaña de Balance
+            df.columns = ['Fecha', 'Cuenta', 'Clasificación', 'Categoría', 'Monto']
+            df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
             df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
         return df
     except Exception as e:
+        st.error(f"Error técnico al leer Balance: {e}")
         return pd.DataFrame(columns=['Fecha', 'Cuenta', 'Clasificación', 'Categoría', 'Monto'])
 
 def guardar_movimiento(df_actual, fecha, concepto, categoria, tipo, monto, worksheet):
@@ -259,6 +265,7 @@ with tab_proyecciones:
             fig_tc = px.line(df_tc, x='Mes', y='Saldo', markers=True)
             fig_tc.update_traces(line_color='red')
             st.plotly_chart(fig_tc, use_container_width=True)
+
 
 
 
