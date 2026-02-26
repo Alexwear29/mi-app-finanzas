@@ -48,9 +48,20 @@ def guardar_movimiento(df_actual, fecha, concepto, categoria, tipo, monto, works
         df_actual.columns[3]: [tipo], 
         df_actual.columns[4]: [monto]
     })
+    
+    # Unimos la tabla vieja con el registro nuevo
     df_actualizado = pd.concat([df_actual, nuevo], ignore_index=True)
+    
+    # 1. Guardamos en la nube (a Google le gusta el formato texto)
     conn.update(spreadsheet=URL_HOJA, worksheet=worksheet, data=df_actualizado)
+    
+    # 2. BORRAMOS EL CACHÉ
     st.cache_data.clear()
+    
+    # 3. BLINDAJE DE TIPOS DE DATOS (Esta línea soluciona el TypeError)
+    # Estandarizamos toda la columna a datetime para que sort_values no falle
+    df_actualizado[df_actual.columns[0]] = pd.to_datetime(df_actualizado[df_actual.columns[0]], errors='coerce')
+    
     return df_actualizado
 
 # --- INTERFAZ PRINCIPAL ---
@@ -255,3 +266,4 @@ with tab_proyecciones:
             fig_tc = px.line(df_tc, x='Mes', y='Saldo', markers=True)
             fig_tc.update_traces(line_color='red')
             st.plotly_chart(fig_tc, use_container_width=True)
+
